@@ -2,6 +2,7 @@ package grails.plugins.reloadconfig
 
 import org.codehaus.groovy.grails.plugins.GrailsPlugin
 import grails.util.Environment
+import org.codehaus.groovy.grails.commons.cfg.ConfigurationHelper
 
 class ReloadConfigService {
 	def pluginManager
@@ -28,21 +29,34 @@ class ReloadConfigService {
     }
 	
 	def checkNow() {
-		log.debug("Check now triggered")
+		if (log.debugEnabled) 'Check now triggered'
 		
 		// Check for changes
-		def changed = []
-		files?.each { String fileName ->
-			if (fileName.contains("file:"))
+		List<String> changed = []
+		for ( String fileName : files ) {
+			if (fileName.contains("file:")) {
 				fileName = fileName.substring(fileName.indexOf(':')+1)
-			File configFile = new File(fileName).absoluteFile
-			log.debug("Checking external config file location ${configFile} for changes since ${lastTimeChecked}...")
-			if (configFile.exists() && configFile.lastModified()>lastTimeChecked.time) {
-				log.info("Detected changed configuration in ${configFile.name}, reloading configuration")
-				if (automerge)
-					grailsApplication.config.merge(new ConfigSlurper(Environment.getCurrent().getName()).parse(configFile.text))
-				changed << configFile
 			}
+			File configFile = new File(fileName).absoluteFile
+			if (log.debugEnabled) log.debug "Checking external config file location ${configFile} for changes since ${lastTimeChecked}..."
+			if (configFile.exists() && configFile.lastModified()>lastTimeChecked.time) {
+				log.info "Detected changed configuration in ${configFile.name}, reloading configuration"
+				changed << configFile.name
+			}
+		}
+		
+		if ( changed ) {
+			if ( automerge ) {
+				//grailsApplication.config.merge(new ConfigSlurper(Environment.getCurrent().getName()).parse(configFile.text))
+				log.info "Reloading configuration after ${changed.size()} config files changed : ${changed}"
+				ConfigurationHelper.initConfig(grailsApplication.config)
+			}
+			else {
+				log.info "${changed.size()} config files changed, but grails.plugins.reloadConfig.automerge property is false, so not reloading: ${changed}"
+			}
+		}
+		else {
+			if (log.debugEnabled) 'No config files changed after checking for modifications'
 		}
 		
 		// Reset last checked date
